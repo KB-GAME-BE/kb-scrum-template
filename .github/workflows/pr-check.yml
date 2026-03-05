@@ -37,7 +37,7 @@ jobs:
             
             // 需要关联任务的类型，检查 TASK_ID
             if (requireTaskId.includes(branchType)) {
-              const taskIdMatch = body.match(/TASK_ID:\s*(.+)/);
+              const taskIdMatch = body.match(/TASK_ID:[ \t]*(.+)/);
               const taskId = taskIdMatch ? taskIdMatch[1].trim() : '';
               
               if (!taskId) {
