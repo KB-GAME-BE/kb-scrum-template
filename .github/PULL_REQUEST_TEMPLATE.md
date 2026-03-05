@@ -1,13 +1,3 @@
-## PR 类型
-<!-- 勾选一个 -->
-- [ ] feat（新功能）
-- [ ] fix（Bug 修复）
-- [ ] hotfix（紧急修复）
-- [ ] refactor（重构）
-- [ ] chore（构建/依赖/配置）
-- [ ] docs（文档）
-- [ ] style（格式调整）
-
 ## Lark 任务ID
 <!-- feat/fix/hotfix/refactor 必填，chore/docs/style 可不填 -->
 <!-- 填版本开发计划表里的任务ID数字，多个用逗号分隔，如：5,6 -->
@@ -37,4 +27,3 @@ TASK_ID:
 ### 中间件配置
 
 ### 部署方案
-
