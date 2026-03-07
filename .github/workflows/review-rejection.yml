@@ -1,0 +1,173 @@
+name: 需求打回记录
+
+on:
+  projects_v2_item:
+    types: [edited]
+
+jobs:
+  record-rejection:
+    name: 记录需求打回
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      repository-projects: write
+
+    steps:
+      - name: 检测 In Review → In Progress 并记录打回
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.PROJECT_TOKEN }}
+          script: |
+            const payload = context.payload;
+
+            // 只处理 Status 字段变化
+            if (payload.changes?.field_value?.field_name !== 'Status') {
+              console.log('不是 Status 字段变化，跳过');
+              return;
+            }
+
+            const fromStatus = payload.changes.field_value.from?.name;
+            const toStatus = payload.changes.field_value.to?.name;
+
+            // 只处理 In Review → In Progress
+            if (fromStatus !== 'In Review' || toStatus !== 'In Progress') {
+              console.log(`状态变化：${fromStatus} → ${toStatus}，不是打回，跳过`);
+              return;
+            }
+
+            // 只处理 Issue 类型
+            const contentType = payload.projects_v2_item.content_type;
+            if (contentType !== 'Issue') {
+              console.log('不是 Issue 类型，跳过');
+              return;
+            }
+
+            const contentNodeId = payload.projects_v2_item.content_node_id;
+            const operator = payload.sender.login;
+            const now = new Date().toISOString().split('T')[0];
+
+            // 通过 node_id 查询 Issue 编号和标题
+            const issueQuery = await github.graphql(`
+              query($nodeId: ID!) {
+                node(id: $nodeId) {
+                  ... on Issue {
+                    number
+                    title
+                  }
+                }
+              }
+            `, { nodeId: contentNodeId });
+
+            const issue = issueQuery.node;
+            if (!issue) {
+              console.log('找不到对应 Issue，跳过');
+              return;
+            }
+
+            const issueNumber = issue.number;
+            const issueTitle = issue.title;
+
+            // 只处理 Feature Issue（标题有 [Feature] 前缀）
+            if (!/^\[Feature\]/i.test(issueTitle)) {
+              console.log(`Issue #${issueNumber} 不是 Feature，跳过`);
+              return;
+            }
+
+            // 在 Issue 上生成打回记录模板，打回人补充原因
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issueNumber,
+              body: `## ❌ 需求打回记录\n\n` +
+                    `- **打回人：** @${operator}\n` +
+                    `- **打回原因：** 👉 _请补充打回原因_\n` +
+                    `- **时间：** ${now}`
+            });
+
+            console.log(`✅ 已在 Issue #${issueNumber} 生成打回记录模板`);
+
+            // Review Rejections +1
+            const org = context.repo.owner;
+            const projectNumber = 6;
+
+            const projectQuery = await github.graphql(`
+              query($org: String!, $number: Int!) {
+                organization(login: $org) {
+                  projectV2(number: $number) {
+                    id
+                    fields(first: 20) {
+                      nodes {
+                        ... on ProjectV2Field {
+                          id
+                          name
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            `, { org, number: projectNumber });
+
+            const project = projectQuery.organization.projectV2;
+            const projectId = project.id;
+            const reviewRejectionsField = project.fields.nodes.find(f => f.name === 'Review Rejections');
+
+            if (!reviewRejectionsField) {
+              console.log('未找到 Review Rejections 字段，跳过计数');
+              return;
+            }
+
+            const itemQuery = await github.graphql(`
+              query($org: String!, $repo: String!, $issue: Int!) {
+                repository(owner: $org, name: $repo) {
+                  issue(number: $issue) {
+                    projectItems(first: 10) {
+                      nodes {
+                        id
+                        project { id }
+                        fieldValueByName(name: "Review Rejections") {
+                          ... on ProjectV2ItemFieldNumberValue {
+                            number
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            `, {
+              org: context.repo.owner,
+              repo: context.repo.repo,
+              issue: issueNumber
+            });
+
+            const projectItem = itemQuery.repository.issue.projectItems.nodes.find(
+              item => item.project.id === projectId
+            );
+
+            if (!projectItem) {
+              console.log(`Issue #${issueNumber} 不在 Project 中，跳过`);
+              return;
+            }
+
+            const currentValue = projectItem.fieldValueByName?.number || 0;
+
+            await github.graphql(`
+              mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $value: Float!) {
+                updateProjectV2ItemFieldValue(input: {
+                  projectId: $projectId
+                  itemId: $itemId
+                  fieldId: $fieldId
+                  value: { number: $value }
+                }) {
+                  projectV2Item { id }
+                }
+              }
+            `, {
+              projectId,
+              itemId: projectItem.id,
+              fieldId: reviewRejectionsField.id,
+              value: currentValue + 1
+            });
+
+            console.log(`✅ Issue #${issueNumber} Review Rejections: ${currentValue} → ${currentValue + 1}`);
