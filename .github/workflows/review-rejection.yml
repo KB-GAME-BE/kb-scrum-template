@@ -1,0 +1,137 @@
+name: 需求打回记录
+
+on:
+  issue_comment:
+    types: [created]
+
+jobs:
+  record-rejection:
+    name: 记录需求打回
+    # 只处理 /reject 开头的评论，且是 Issue（不是 PR）
+    if: |
+      startsWith(github.event.comment.body, '/reject') &&
+      github.event.issue.pull_request == null
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      repository-projects: write
+
+    steps:
+      - name: 记录打回信息并更新 Review Rejections
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.PROJECT_TOKEN }}
+          script: |
+            const commentBody = context.payload.comment.body;
+            const issueNumber = context.payload.issue.number;
+            const issueTitle = context.payload.issue.title;
+            const commenter = context.payload.comment.user.login;
+            const now = new Date().toISOString().split('T')[0];
+
+            // 只处理 Feature Issue
+            if (!/^\[Feature\]/i.test(issueTitle)) {
+              console.log(`Issue #${issueNumber} 不是 Feature，跳过`);
+              return;
+            }
+
+            // 提取 /reject 后面的原因
+            const reason = commentBody.replace(/^\/reject\s*/i, '').trim() || '（未填写打回原因）';
+
+            // 在 Issue 上添加格式化打回记录
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issueNumber,
+              body: `## ❌ 需求打回记录\n\n` +
+                    `- **打回人：** @${commenter}\n` +
+                    `- **打回原因：** ${reason}\n` +
+                    `- **时间：** ${now}`
+            });
+
+            console.log(`✅ 已在 Issue #${issueNumber} 添加打回记录`);
+
+            // Review Rejections +1
+            const org = context.repo.owner;
+            const projectNumber = 6;
+
+            const projectQuery = await github.graphql(`
+              query($org: String!, $number: Int!) {
+                organization(login: $org) {
+                  projectV2(number: $number) {
+                    id
+                    fields(first: 20) {
+                      nodes {
+                        ... on ProjectV2Field {
+                          id
+                          name
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            `, { org, number: projectNumber });
+
+            const project = projectQuery.organization.projectV2;
+            const projectId = project.id;
+            const reviewRejectionsField = project.fields.nodes.find(f => f.name === 'Review Rejections');
+
+            if (!reviewRejectionsField) {
+              console.log('未找到 Review Rejections 字段，跳过计数');
+              return;
+            }
+
+            const itemQuery = await github.graphql(`
+              query($org: String!, $repo: String!, $issue: Int!) {
+                repository(owner: $org, name: $repo) {
+                  issue(number: $issue) {
+                    projectItems(first: 10) {
+                      nodes {
+                        id
+                        project { id }
+                        fieldValueByName(name: "Review Rejections") {
+                          ... on ProjectV2ItemFieldNumberValue {
+                            number
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            `, {
+              org: context.repo.owner,
+              repo: context.repo.repo,
+              issue: issueNumber
+            });
+
+            const projectItem = itemQuery.repository.issue.projectItems.nodes.find(
+              item => item.project.id === projectId
+            );
+
+            if (!projectItem) {
+              console.log(`Issue #${issueNumber} 不在 Project 中，跳过`);
+              return;
+            }
+
+            const currentValue = projectItem.fieldValueByName?.number || 0;
+
+            await github.graphql(`
+              mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $value: Float!) {
+                updateProjectV2ItemFieldValue(input: {
+                  projectId: $projectId
+                  itemId: $itemId
+                  fieldId: $fieldId
+                  value: { number: $value }
+                }) {
+                  projectV2Item { id }
+                }
+              }
+            `, {
+              projectId,
+              itemId: projectItem.id,
+              fieldId: reviewRejectionsField.id,
+              value: currentValue + 1
+            });
+
+            console.log(`✅ Issue #${issueNumber} Review Rejections: ${currentValue} → ${currentValue + 1}`);
