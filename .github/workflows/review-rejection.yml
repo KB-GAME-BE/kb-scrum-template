@@ -7,7 +7,6 @@ on:
 jobs:
   record-rejection:
     name: 记录需求打回
-    # 只处理 /reject 开头的评论，且是 Issue（不是 PR）
     if: |
       startsWith(github.event.comment.body, '/reject') &&
       github.event.issue.pull_request == null
@@ -22,6 +21,7 @@ jobs:
         with:
           github-token: ${{ secrets.PROJECT_TOKEN }}
           script: |
+            const commentId = context.payload.comment.id;
             const commentBody = context.payload.comment.body;
             const issueNumber = context.payload.issue.number;
             const issueTitle = context.payload.issue.title;
@@ -37,20 +37,20 @@ jobs:
             // 提取 /reject 后面的原因
             const reason = commentBody.replace(/^\/reject\s*/i, '').trim() || '（未填写打回原因）';
 
-            // 在 Issue 上添加格式化打回记录
-            await github.rest.issues.createComment({
+            // 直接编辑原始评论，改成格式化记录（不新建）
+            await github.rest.issues.updateComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              issue_number: issueNumber,
+              comment_id: commentId,
               body: `## ❌ 需求打回记录\n\n` +
                     `- **打回人：** @${commenter}\n` +
                     `- **打回原因：** ${reason}\n` +
                     `- **时间：** ${now}`
             });
 
-            console.log(`✅ 已在 Issue #${issueNumber} 添加打回记录`);
+            console.log(`✅ 已更新 Issue #${issueNumber} 的打回记录`);
 
-            // Review Rejections +1
+            // 查询 Project 信息
             const org = context.repo.owner;
             const projectNumber = 6;
 
@@ -65,6 +65,11 @@ jobs:
                           id
                           name
                         }
+                        ... on ProjectV2SingleSelectField {
+                          id
+                          name
+                          options { id name }
+                        }
                       }
                     }
                   }
@@ -74,13 +79,15 @@ jobs:
 
             const project = projectQuery.organization.projectV2;
             const projectId = project.id;
+
+            // 找 Review Rejections 字段
             const reviewRejectionsField = project.fields.nodes.find(f => f.name === 'Review Rejections');
 
-            if (!reviewRejectionsField) {
-              console.log('未找到 Review Rejections 字段，跳过计数');
-              return;
-            }
+            // 找 Status 字段和 In Progress 选项
+            const statusField = project.fields.nodes.find(f => f.name === 'Status');
+            const inProgressOption = statusField?.options?.find(o => o.name === 'In Progress');
 
+            // 查询 Issue 的 Project Item
             const itemQuery = await github.graphql(`
               query($org: String!, $repo: String!, $issue: Int!) {
                 repository(owner: $org, name: $repo) {
@@ -114,24 +121,47 @@ jobs:
               return;
             }
 
-            const currentValue = projectItem.fieldValueByName?.number || 0;
-
-            await github.graphql(`
-              mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $value: Float!) {
-                updateProjectV2ItemFieldValue(input: {
-                  projectId: $projectId
-                  itemId: $itemId
-                  fieldId: $fieldId
-                  value: { number: $value }
-                }) {
-                  projectV2Item { id }
+            // Status 改为 In Progress
+            if (statusField && inProgressOption) {
+              await github.graphql(`
+                mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $optionId: String!) {
+                  updateProjectV2ItemFieldValue(input: {
+                    projectId: $projectId
+                    itemId: $itemId
+                    fieldId: $fieldId
+                    value: { singleSelectOptionId: $optionId }
+                  }) {
+                    projectV2Item { id }
+                  }
                 }
-              }
-            `, {
-              projectId,
-              itemId: projectItem.id,
-              fieldId: reviewRejectionsField.id,
-              value: currentValue + 1
-            });
+              `, {
+                projectId,
+                itemId: projectItem.id,
+                fieldId: statusField.id,
+                optionId: inProgressOption.id
+              });
+              console.log(`✅ Issue #${issueNumber} Status → In Progress`);
+            }
 
-            console.log(`✅ Issue #${issueNumber} Review Rejections: ${currentValue} → ${currentValue + 1}`);
+            // Review Rejections +1
+            if (reviewRejectionsField) {
+              const currentValue = projectItem.fieldValueByName?.number || 0;
+              await github.graphql(`
+                mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $value: Float!) {
+                  updateProjectV2ItemFieldValue(input: {
+                    projectId: $projectId
+                    itemId: $itemId
+                    fieldId: $fieldId
+                    value: { number: $value }
+                  }) {
+                    projectV2Item { id }
+                  }
+                }
+              `, {
+                projectId,
+                itemId: projectItem.id,
+                fieldId: reviewRejectionsField.id,
+                value: currentValue + 1
+              });
+              console.log(`✅ Issue #${issueNumber} Review Rejections: ${currentValue} → ${currentValue + 1}`);
+            }
