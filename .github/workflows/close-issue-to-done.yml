@@ -31,7 +31,7 @@ jobs:
             }
 
             const org = context.repo.owner;
-            const projectNumber = 1; // ← 你的 Project 编号，在 Project URL 里能看到
+            const projectNumber = 6; // ← 你的 Project 编号，在 Project URL 里能看到
 
             // 查询 Project ID 和 Status 字段信息
             const projectQuery = await github.graphql(`
