@@ -14,16 +14,41 @@ jobs:
         with:
           script: |
             const body = context.payload.pull_request.body || '';
-            const pattern = /closes\s+#\d+/i;
-            
-            if (!pattern.test(body)) {
+            // 先去掉 HTML 注释，防止注释里的示例被误匹配
+            const stripped = body.replace(/<!--[\s\S]*?-->/g, '');
+            const pattern = /closes\s+#(\d+)/gi;
+            const matches = [...stripped.matchAll(pattern)];
+
+            if (matches.length === 0) {
               core.setFailed(
                 '❌ PR 描述中缺少关联任务！\n' +
                 '请在描述中添加：Closes #任务编号（如：Closes #13）'
               );
-            } else {
-              const match = body.match(/closes\s+#(\d+)/i);
-              console.log(`✅ 已关联任务 #${match[1]}`);
+              return;
+            }
+
+            // 逐个验证 Issue 是否存在
+            for (const match of matches) {
+              const issueNumber = parseInt(match[1]);
+              try {
+                const { data: issue } = await github.rest.issues.get({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: issueNumber,
+                });
+                console.log(`✅ Issue #${issueNumber} 存在：${issue.title}`);
+
+                // 额外检查：是否是 Task 或 Bug（标题有 [Task] 或 [Bug] 前缀）
+                if (!/^\[(Task|Bug)\]/i.test(issue.title)) {
+                  core.warning(
+                    `⚠️ #${issueNumber} 标题不含 [Task] 或 [Bug] 前缀，请确认关联的是任务或 Bug，而非需求本身。`
+                  );
+                }
+              } catch (e) {
+                core.setFailed(
+                  `❌ Issue #${issueNumber} 不存在！请检查编号是否正确。`
+                );
+              }
             }
 
   check-checklist:
