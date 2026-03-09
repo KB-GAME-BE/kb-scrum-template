@@ -1,37 +1,22 @@
 name: Feature 需求
 description: 新功能需求
 labels: ["feature"]
+title: "[Feature] "
 body:
-  - type: input
-    id: title-hint
-    attributes:
-      label: 标题格式
-      description: 请在页面顶部标题框填写，格式：[Feature] 需求描述
-      placeholder: 例：[Feature] 用户登录功能
-    validations:
-      required: false
-
   - type: textarea
     id: description
     attributes:
       label: 需求说明
-      description: 描述这个需求要做什么
       placeholder: |
         作为 xxx 用户，我希望 xxx，以便 xxx
-    validations:
-      required: true
 
   - type: textarea
     id: acceptance
     attributes:
       label: 验收标准
-      description: 完成这个需求需要满足哪些条件
       placeholder: |
         - [ ] 条件一
         - [ ] 条件二
-        - [ ] 条件三
-    validations:
-      required: true
 
   - type: textarea
     id: scope
@@ -40,8 +25,6 @@ body:
       placeholder: |
         - 后端：xxx 模块
         - 前端：xxx 页面
-    validations:
-      required: false
 
   - type: dropdown
     id: priority
@@ -51,13 +34,9 @@ body:
         - P0 - 紧急阻塞
         - P1 - 重要
         - P2 - 普通
-    validations:
-      required: true
 
   - type: input
     id: estimate
     attributes:
       label: 故事点估算
       placeholder: "1 / 2 / 3 / 5 / 8"
-    validations:
-      required: false

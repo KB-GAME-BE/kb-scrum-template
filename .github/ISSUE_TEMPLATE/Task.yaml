@@ -1,24 +1,13 @@
 name: Task 任务
 description: 需求拆解出的开发任务（Sub-issue）
 labels: ["task"]
+title: "[Task] 前端/后端-"
 body:
-  - type: input
-    id: title-hint
-    attributes:
-      label: 标题格式
-      description: 请在页面顶部标题框填写，格式：[Task] 前端/后端-任务描述
-      placeholder: 例：[Task] 后端-用户登录接口实现
-    validations:
-      required: false
-
   - type: textarea
     id: description
     attributes:
       label: 任务说明
-      description: 这个任务具体要做什么
       placeholder: 简要描述开发内容
-    validations:
-      required: true
 
   - type: textarea
     id: checklist
@@ -26,15 +15,10 @@ body:
       label: 完成条件
       placeholder: |
         - [ ] 接口开发完成
-        - [ ] 单元测试通过
         - [ ] 联调通过
-    validations:
-      required: false
 
   - type: input
     id: parent
     attributes:
       label: 关联需求
       placeholder: "关联 Feature Issue 编号，例：#11"
-    validations:
-      required: false
