@@ -1,0 +1,8 @@
+name: Delay 自动同步
+on:
+  issues:
+    types: [labeled]
+jobs:
+  call:
+    uses: KB-GAME-BE/.github/.github/workflows/sync-delay.yml@main
+    secrets: inherit
