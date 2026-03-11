@@ -6,3 +6,6 @@ jobs:
   call:
     uses: KB-GAME-BE/.github/.github/workflows/sync-task-estimate.yml@main
     secrets: inherit
+    permissions:
+      issues: write
+      repository-projects: write
