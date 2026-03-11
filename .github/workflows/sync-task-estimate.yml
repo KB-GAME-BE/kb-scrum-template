@@ -1,0 +1,8 @@
+name: 同步 Task 故事点
+on:
+  issues:
+    types: [opened]
+jobs:
+  call:
+    uses: KB-GAME-BE/.github/.github/workflows/sync-task-estimate.yml@main
+    secrets: inherit
