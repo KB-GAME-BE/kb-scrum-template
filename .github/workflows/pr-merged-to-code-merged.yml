@@ -1,0 +1,8 @@
+name: PR 合并后更新状态
+on:
+  pull_request:
+    types: [closed]
+jobs:
+  call:
+    uses: KB-GAME-BE/.github/.github/workflows/pr-merged-to-code-merged.yml@main
+    secrets: inherit
