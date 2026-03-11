@@ -1,0 +1,8 @@
+name: 验收打回同步
+on:
+  issues:
+    types: [labeled]
+jobs:
+  call:
+    uses: KB-GAME-BE/.github/.github/workflows/sync-review-reject.yml@main
+    secrets: inherit
