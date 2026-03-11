@@ -1,0 +1,8 @@
+name: Bug 自动设置 Bug Owner
+on:
+  issues:
+    types: [opened, assigned]
+jobs:
+  call:
+    uses: KB-GAME-BE/.github/.github/workflows/sync-bug-owner.yml@main
+    secrets: inherit

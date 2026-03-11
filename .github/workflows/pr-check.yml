@@ -1,80 +1,8 @@
 name: PR 规范检查
-
 on:
   pull_request:
     types: [opened, edited, synchronize]
-
 jobs:
-  check-closes:
-    name: 检查关联任务
-    runs-on: ubuntu-latest
-    steps:
-      - name: 检查是否包含 Closes #xxx
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const body = context.payload.pull_request.body || '';
-            // 先去掉 HTML 注释，防止注释里的示例被误匹配
-            const stripped = body.replace(/<!--[\s\S]*?-->/g, '');
-            const pattern = /closes\s+#(\d+)/gi;
-            const matches = [...stripped.matchAll(pattern)];
-
-            if (matches.length === 0) {
-              core.setFailed(
-                '❌ PR 描述中缺少关联任务！\n' +
-                '请在描述中添加：Closes #任务编号（如：Closes #13）'
-              );
-              return;
-            }
-
-            // 逐个验证 Issue 是否存在
-            for (const match of matches) {
-              const issueNumber = parseInt(match[1]);
-              try {
-                const { data: issue } = await github.rest.issues.get({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  issue_number: issueNumber,
-                });
-                console.log(`✅ Issue #${issueNumber} 存在：${issue.title}`);
-
-                // 额外检查：是否是 Task 或 Bug（标题有 [Task] 或 [Bug] 前缀）
-                if (!/^\[(Task|Bug)\]/i.test(issue.title)) {
-                  core.warning(
-                    `⚠️ #${issueNumber} 标题不含 [Task] 或 [Bug] 前缀，请确认关联的是任务或 Bug，而非需求本身。`
-                  );
-                }
-              } catch (e) {
-                core.setFailed(
-                  `❌ Issue #${issueNumber} 不存在！请检查编号是否正确。`
-                );
-              }
-            }
-
-  check-checklist:
-    name: 检查自测 Checklist
-    runs-on: ubuntu-latest
-    steps:
-      - name: 检查是否全部勾选
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const body = context.payload.pull_request.body || '';
-            
-            // 未勾选的 checkbox：- [ ]
-            const unchecked = (body.match(/- \[ \]/g) || []).length;
-            // 已勾选的 checkbox：- [x]
-            const checked = (body.match(/- \[x\]/gi) || []).length;
-            
-            if (unchecked > 0) {
-              core.setFailed(
-                `❌ 自测 Checklist 未完成！还有 ${unchecked} 项未勾选。\n` +
-                `请完成所有自测项后再提交 PR。`
-              );
-            } else if (checked === 0) {
-              core.setFailed(
-                '❌ 未找到任何 Checklist 项，请使用标准 PR 模板。'
-              );
-            } else {
-              console.log(`✅ Checklist 全部完成，共 ${checked} 项`);
-            }
+  call:
+    uses: KB-GAME-BE/.github/.github/workflows/pr-check.yml@main
+    secrets: inherit
