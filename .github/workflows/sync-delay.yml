@@ -4,6 +4,7 @@ on:
     types: [labeled]
 jobs:
   call:
+    if: github.event.label.name == 'delay'
     uses: KB-GAME-BE/.github/.github/workflows/sync-delay.yml@main
     secrets: inherit
     permissions:
