@@ -1,0 +1,12 @@
+name: CR 打回同步
+on:
+  pull_request_review:
+    types: [submitted]
+jobs:
+  call:
+    if: github.event.review.state == 'changes_requested'
+    uses: KB-GAME-BE/.github/.github/workflows/auto-cr-reject.yml@main
+    secrets: inherit
+    permissions:
+      issues: write
+      repository-projects: write
