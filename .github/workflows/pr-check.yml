@@ -1,8 +1,0 @@
-name: PR 规范检查
-on:
-  pull_request:
-    types: [opened, edited, synchronize]
-jobs:
-  call:
-    uses: KB-GAME-BE/.github/.github/workflows/pr-check.yml@main
-    secrets: inherit
