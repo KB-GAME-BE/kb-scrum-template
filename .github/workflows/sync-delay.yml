@@ -1,7 +1,7 @@
 name: Delay 自动同步
 on:
   issues:
-    types: [labeled]
+    types: [opened]
 jobs:
   call:
     if: github.event.label.name == 'delay'
