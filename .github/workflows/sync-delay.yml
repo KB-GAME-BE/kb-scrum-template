@@ -1,10 +1,9 @@
 name: Delay 自动同步
 on:
   issues:
-    types: [labeled]
+    types: [opened]
 jobs:
   call:
-    if: github.event.label.name == 'delay'
     uses: KB-GAME-BE/.github/.github/workflows/sync-delay.yml@main
     secrets: inherit
     permissions:
